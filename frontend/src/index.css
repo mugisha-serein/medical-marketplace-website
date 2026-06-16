@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Colors - Medical Elite Palette */
+  --color-primary: #0f172a; /* Dark Navy Blue */
+  --color-primary-hover: #1e293b;
+  --color-accent: #059669;   /* Deep Emerald Green */
+  --color-accent-hover: #047857;
+  
+  --color-surface: #ffffff;
+  --color-surface-muted: #fbfbfc;
+  --color-surface-card: rgba(255, 255, 255, 0.8);
+  
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #ffffff;
+
+  --color-success: #10b981;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+
+  /* Tier-1 Typography Base */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Outfit', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* Typography Scale */
+  --font-size-h1: clamp(3rem, 10vw, 5.5rem);
+  --font-size-h2: clamp(2rem, 6vw, 3.5rem);
+  --font-size-h3: clamp(1.5rem, 4vw, 2.25rem);
+  --font-size-h4: clamp(1.25rem, 3vw, 1.75rem);
+  --font-size-body-lg: 1.125rem;
+  --font-size-body: 1rem;
+  --font-size-body-sm: 0.875rem;
+  --font-size-label: 0.75rem;
+
+  /* Line Heights */
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-relaxed: 1.6;
+
+  /* Spacing System - 8pt Grid */
+  --spacing-1: 0.25rem;  /* 4px */
+  --spacing-2: 0.5rem;   /* 8px */
+  --spacing-3: 0.75rem;  /* 12px */
+  --spacing-4: 1rem;     /* 16px */
+  --spacing-6: 1.5rem;   /* 24px */
+  --spacing-8: 2rem;     /* 32px */
+  --spacing-10: 2.5rem;  /* 40px */
+  --spacing-12: 3rem;    /* 48px */
+  --spacing-16: 4rem;    /* 64px */
+  --spacing-20: 5rem;    /* 80px */
+  --spacing-24: 6rem;    /* 96px */
+  --spacing-32: 8rem;    /* 128px */
+
+  /* Shadows - Deep and Subtle */
+  --shadow-premium: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  --shadow-inner-glow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3);
+  
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-3xl: 2.5rem;
+  --radius-4xl: 3rem;
+  --radius-full: 9999px;
+
+  /* Glassmorphism Variables - High Fidelity */
+  --glass-blur: 24px;
+  --glass-border: rgba(255, 255, 255, 0.4);
+
+  /* Animation Tokens */
+  --transition-ultra: all 0.4s cubic-bezier(0.2, 0, 0, 1);
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-text-main font-sans antialiased;
+    background-image: radial-gradient(circle at 50% 120%, rgba(5, 150, 105, 0.03), transparent 50%),
+                      radial-gradient(circle at 0% 0%, rgba(15, 23, 42, 0.02), transparent 40%);
+  }
+
+  h1 {
+    font-size: var(--font-size-h1);
+    @apply font-black tracking-tighter leading-tight;
+  }
+
+  h2, h3, h4, h5, h6 {
+    @apply font-heading font-semibold text-text-main tracking-tight;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-surface-card shadow-inner-glow;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-dark {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+
+* {
+  box-sizing: border-box;
+}
+
+
