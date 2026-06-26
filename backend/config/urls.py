@@ -5,13 +5,9 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('apps.accounts.urls')),
+    path('api/v1/', include('config.api.v1.urls')),
+    # Backward-compatible public aliases used by older frontend code.
     path('api/catalog/', include('apps.catalog.urls')),
-    path('api/cart/', include('apps.cart.urls')),
-    path('api/orders/', include('apps.orders.urls')),
-    path('api/inventory/', include('apps.inventory.urls')),
-    path('api/kpi/', include('apps.kpi.urls')),
-    path('api/notification/', include('apps.notification.urls')),
     path('api/inquiries/', include('apps.inquiries.urls')),
 ]
 

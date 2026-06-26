@@ -1,7 +1,5 @@
 import uuid
 from django.db import models
-from django.contrib.postgres.indexes import GinIndex
-from django.contrib.postgres.search import SearchVectorField, SearchVector
 
 
 class Category(models.Model):
@@ -62,12 +60,10 @@ class Product(models.Model):
     manufacturer = models.CharField(max_length=255, blank=True)
     model_number = models.CharField(max_length=255, blank=True)
     specifications = models.JSONField(default=dict, blank=True)
+    stock_quantity = models.PositiveIntegerField(default=0)
 
     is_active = models.BooleanField(default=True, db_index=True)
     is_featured = models.BooleanField(default=False, db_index=True)
-
-    # Full-text search vector (updated via signal or migration trigger)
-    search_vector = SearchVectorField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -76,7 +72,6 @@ class Product(models.Model):
         db_table = 'catalog_product'
         ordering = ['-created_at']
         indexes = [
-            GinIndex(fields=['search_vector'], name='product_search_gin'),
             models.Index(fields=['category', 'is_active', 'price'], name='product_category_active_price'),
             models.Index(fields=['vendor', 'is_active'], name='product_vendor_active'),
             models.Index(fields=['condition', 'is_active'], name='product_condition_active'),
@@ -87,15 +82,8 @@ class Product(models.Model):
         return self.name
 
     def update_search_vector(self):
-        Product.objects.filter(pk=self.pk).update(
-            search_vector=(
-                SearchVector('name', weight='A') +
-                SearchVector('short_description', weight='B') +
-                SearchVector('description', weight='C') +
-                SearchVector('manufacturer', weight='B') +
-                SearchVector('model_number', weight='B')
-            )
-        )
+        """SQLite MVP keeps simple icontains search in the service layer."""
+        return None
 
 
 class ProductImage(models.Model):
@@ -111,7 +99,6 @@ class ProductImage(models.Model):
         ordering = ['order', 'id']
 
     def save(self, *args, **kwargs):
-        # Ensure only one primary image per product
         if self.is_primary:
             ProductImage.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
         super().save(*args, **kwargs)

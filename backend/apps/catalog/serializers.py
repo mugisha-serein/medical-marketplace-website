@@ -28,7 +28,6 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 
 class ProductListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list views."""
     primary_image = serializers.SerializerMethodField()
     category_name = serializers.CharField(source='category.name', read_only=True)
     vendor_name = serializers.CharField(source='vendor.company_name', read_only=True)
@@ -40,7 +39,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'sku', 'price', 'condition',
             'short_description', 'manufacturer', 'model_number',
             'category_name', 'vendor_name', 'primary_image',
-            'is_featured', 'in_stock', 'created_at',
+            'is_featured', 'in_stock', 'stock_quantity', 'created_at',
         ]
 
     def get_primary_image(self, obj):
@@ -56,18 +55,15 @@ class ProductListSerializer(serializers.ModelSerializer):
         return None
 
     def get_in_stock(self, obj):
-        if hasattr(obj, 'stock_record'):
-            return obj.stock_record.quantity > 0
-        return False
+        return obj.stock_quantity > 0
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
-    """Full serializer for detail views."""
     images = ProductImageSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     category = CategorySerializer(read_only=True)
     vendor = serializers.SerializerMethodField()
-    stock_quantity = serializers.SerializerMethodField()
+    stock_quantity = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Product
@@ -88,11 +84,6 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'website': v.website,
         }
 
-    def get_stock_quantity(self, obj):
-        if hasattr(obj, 'stock_record'):
-            return obj.stock_record.quantity
-        return 0
-
 
 class ProductCreateUpdateSerializer(serializers.ModelSerializer):
     tag_ids = serializers.ListField(child=serializers.UUIDField(), required=False, write_only=True)
@@ -103,6 +94,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
             'name', 'sku', 'price', 'condition', 'description',
             'short_description', 'manufacturer', 'model_number',
             'specifications', 'category', 'tag_ids', 'is_active', 'is_featured',
+            'stock_quantity',
         ]
 
     def validate_price(self, value):
@@ -118,7 +110,6 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         product = Product.objects.create(**validated_data)
         if tag_ids:
             product.tags.set(tag_ids)
-        product.update_search_vector()
         return product
 
     def update(self, instance, validated_data):
@@ -133,6 +124,5 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         if tag_ids is not None:
             instance.tags.set(tag_ids)
-        instance.update_search_vector()
         ProductService.invalidate_product_cache(str(instance.pk))
         return instance
