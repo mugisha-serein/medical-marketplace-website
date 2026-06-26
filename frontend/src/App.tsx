@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import './index.css'
 
 type Product = {
@@ -87,7 +88,7 @@ export default function App() {
     return { vendors: vendors.size, categories: categories.size, stock }
   }, [products])
 
-  async function submitInquiry(event: React.FormEvent<HTMLFormElement>) {
+  async function submitInquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedProduct) return
     setSubmitting(true)
