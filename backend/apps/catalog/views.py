@@ -1,8 +1,8 @@
-from rest_framework import status, generics
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.permissions import AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from config.permission import IsVendorOrAdmin, VendorProductPermission
 from infrastructure.responses import SuccessResponse, ErrorResponse
@@ -18,6 +18,7 @@ class ProductListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        ProductService.ensure_demo_data()
         params = {
             'q': request.query_params.get('q', ''),
             'category_slug': request.query_params.get('category'),
@@ -28,7 +29,6 @@ class ProductListView(APIView):
             'is_featured': request.query_params.get('is_featured') == 'true',
             'ordering': request.query_params.get('ordering', '-created_at'),
         }
-        # Sanitize numeric filters
         for key in ('min_price', 'max_price'):
             if params[key]:
                 try:
@@ -37,14 +37,12 @@ class ProductListView(APIView):
                     params[key] = None
 
         queryset = SearchService.search(params)
-        # Manual pagination for list results from cache
         page_size = min(int(request.query_params.get('page_size', 20)), 100)
         page = max(int(request.query_params.get('page', 1)), 1)
         start = (page - 1) * page_size
         end = start + page_size
         results = list(queryset) if not isinstance(queryset, list) else queryset
-        paginated = results[start:end]
-        serializer = ProductListSerializer(paginated, many=True, context={'request': request})
+        serializer = ProductListSerializer(results[start:end], many=True, context={'request': request})
         return Response({
             'count': len(results),
             'page': page,
@@ -57,6 +55,7 @@ class ProductDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
+        ProductService.ensure_demo_data()
         try:
             product = Product.objects.select_related('vendor', 'category').prefetch_related(
                 'images', 'tags'
@@ -78,6 +77,7 @@ class VendorProductListCreateView(APIView):
     permission_classes = [IsVendorOrAdmin]
 
     def get(self, request):
+        ProductService.ensure_demo_data()
         if request.user.is_staff:
             qs = Product.objects.all()
         else:
@@ -106,17 +106,12 @@ class VendorProductDetailView(APIView):
             ).get(pk=product_id)
         except Product.DoesNotExist:
             return None, Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
-        perm = VendorProductPermission()
-        if not perm.has_object_permission(None, None, product):
-            # Manual check
-            if not user.is_staff:
-                vp = getattr(user, 'vendor_profile', None)
-                if product.vendor != vp:
-                    return None, ErrorResponse(
-                        message='Permission denied.',
-                        error_code='FORBIDDEN',
-                        status_code=status.HTTP_403_FORBIDDEN
-                    )
+        if not user.is_staff and product.vendor != getattr(user, 'vendor_profile', None):
+            return None, ErrorResponse(
+                message='Permission denied.',
+                error_code='FORBIDDEN',
+                status_code=status.HTTP_403_FORBIDDEN
+            )
         return product, None
 
     def get(self, request, product_id):
@@ -186,6 +181,7 @@ class CategoryListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        ProductService.ensure_demo_data()
         categories = ProductService.get_category_tree()
         serializer = CategorySerializer(
             [c for c in categories if c.parent_id is None], many=True
