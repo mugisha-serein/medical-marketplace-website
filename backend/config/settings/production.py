@@ -1,39 +1,44 @@
+"""Production-style settings for the SQLite presentation MVP.
+
+This file intentionally stays aligned with `base.py`: SQLite database,
+local/static media, locmem cache, and no PostgreSQL, Redis, Celery, S3,
+or python-decouple dependency.
 """
-Production settings — hardened for production deployment.
-All sensitive values MUST be provided via environment variables.
-"""
-from decouple import config, Csv
-from .base import *
+import os
 
-if DEBUG:
-    raise ValueError('DEBUG must be False in production! Set DEBUG=False in .env')
+from .base import *  # noqa: F403,F401
 
-if ENVIRONMENT != 'production':
-    raise ValueError(
-        f'ENVIRONMENT must be "production", got "{ENVIRONMENT}". '
-        'Set ENVIRONMENT=production in .env'
-    )
+DEBUG = False
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'production')
 
-INSECURE_SECRET_KEYS = config('INSECURE_SECRET_KEYS', cast=Csv())
-if SECRET_KEY in INSECURE_SECRET_KEYS:
-    raise ValueError('SECRET_KEY is insecure! Generate a new SECRET_KEY and set it in .env')
+# Keep the same comma-separated format as base.py so deployment remains simple.
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
+]
 
-SECURE_BROWSER_XSS_FILTER = config('SECURE_BROWSER_XSS_FILTER', cast=bool)
-SECURE_CONTENT_TYPE_NOSNIFF = config('SECURE_CONTENT_TYPE_NOSNIFF', cast=bool)
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', ','.join(CORS_ALLOWED_ORIGINS)).split(',')
+    if origin.strip()
+]
 
-if not USE_S3:
-    raise ValueError('USE_S3 must be True in production! Set USE_S3=True in .env')
+# Safe Django production toggles that do not require extra services.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
 
-if CELERY_TASK_ALWAYS_EAGER:
-    raise ValueError(
-        'CELERY_TASK_ALWAYS_EAGER must be False in production! '
-        'Set CELERY_TASK_ALWAYS_EAGER=False in .env'
-    )
+# Enable these by env only when the app is deployed behind HTTPS.
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'false').lower() in {'1', 'true', 'yes', 'on'}
+SESSION_COOKIE_SECURE = SECURE_SSL_REDIRECT
+CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
 
-if not SENTRY_DSN:
-    print('WARNING: SENTRY_DSN not configured. Error tracking is disabled.')
-
-print(f'Production settings loaded (ENVIRONMENT={ENVIRONMENT}, DEBUG={DEBUG})')
-print(f'SSL redirect: {SECURE_SSL_REDIRECT}')
-print(f'HSTS enabled: {SECURE_HSTS_SECONDS}s')
-print(f'S3 storage: {AWS_STORAGE_BUCKET_NAME}')
+print(f'SQLite MVP production settings loaded (ENVIRONMENT={ENVIRONMENT}, DEBUG={DEBUG})')
+print(f'Database engine: {DATABASES["default"]["ENGINE"]}')  # noqa: F405
+print(f'Allowed hosts: {ALLOWED_HOSTS}')
