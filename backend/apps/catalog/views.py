@@ -4,14 +4,21 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from config.permission import IsVendorOrAdmin, VendorProductPermission
-from infrastructure.responses import SuccessResponse, ErrorResponse
+from config.permission import IsVendorOrAdmin
 from .models import Product, Category, Tag, ProductImage
 from .serializers import (
     ProductListSerializer, ProductDetailSerializer, ProductCreateUpdateSerializer,
     CategorySerializer, TagSerializer, ProductImageSerializer,
 )
 from .services import SearchService, ProductService
+
+
+def success_response(data=None, message='OK', status_code=status.HTTP_200_OK):
+    return Response({'success': True, 'message': message, 'data': data}, status=status_code)
+
+
+def error_response(message, error_code='ERROR', status_code=status.HTTP_400_BAD_REQUEST):
+    return Response({'success': False, 'message': message, 'error_code': error_code}, status=status_code)
 
 
 class ProductListView(APIView):
@@ -61,16 +68,9 @@ class ProductDetailView(APIView):
                 'images', 'tags'
             ).get(slug=slug, is_active=True)
         except Product.DoesNotExist:
-            return ErrorResponse(
-                message='Product not found.',
-                error_code='NOT_FOUND',
-                status_code=status.HTTP_404_NOT_FOUND,
-            )
+            return error_response('Product not found.', 'NOT_FOUND', status.HTTP_404_NOT_FOUND)
         serializer = ProductDetailSerializer(product, context={'request': request})
-        return SuccessResponse(
-            data=serializer.data,
-            message='Product retrieved successfully.',
-        )
+        return success_response(serializer.data, 'Product retrieved successfully.')
 
 
 class VendorProductListCreateView(APIView):
@@ -105,22 +105,18 @@ class VendorProductDetailView(APIView):
                 'images', 'tags'
             ).get(pk=product_id)
         except Product.DoesNotExist:
-            return None, Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return None, error_response('Product not found.', 'NOT_FOUND', status.HTTP_404_NOT_FOUND)
         if not user.is_staff and product.vendor != getattr(user, 'vendor_profile', None):
-            return None, ErrorResponse(
-                message='Permission denied.',
-                error_code='FORBIDDEN',
-                status_code=status.HTTP_403_FORBIDDEN
-            )
+            return None, error_response('Permission denied.', 'FORBIDDEN', status.HTTP_403_FORBIDDEN)
         return product, None
 
     def get(self, request, product_id):
         product, err = self.get_object(product_id, request.user)
         if err:
             return err
-        return SuccessResponse(
-            data=ProductDetailSerializer(product, context={'request': request}).data,
-            message='Product retrieved successfully.'
+        return success_response(
+            ProductDetailSerializer(product, context={'request': request}).data,
+            'Product retrieved successfully.'
         )
 
     def patch(self, request, product_id):
@@ -132,9 +128,9 @@ class VendorProductDetailView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
-        return SuccessResponse(
-            data=ProductDetailSerializer(product, context={'request': request}).data,
-            message='Product updated successfully.'
+        return success_response(
+            ProductDetailSerializer(product, context={'request': request}).data,
+            'Product updated successfully.'
         )
 
     def delete(self, request, product_id):
@@ -155,26 +151,14 @@ class ProductImageUploadView(APIView):
         try:
             product = Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            return ErrorResponse(
-                message='Product not found.',
-                error_code='NOT_FOUND',
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('Product not found.', 'NOT_FOUND', status.HTTP_404_NOT_FOUND)
         if not request.user.is_staff and getattr(request.user, 'vendor_profile', None) != product.vendor:
-            return ErrorResponse(
-                message='Permission denied.',
-                error_code='FORBIDDEN',
-                status_code=status.HTTP_403_FORBIDDEN
-            )
+            return error_response('Permission denied.', 'FORBIDDEN', status.HTTP_403_FORBIDDEN)
         serializer = ProductImageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(product=product)
         ProductService.invalidate_product_cache(str(product_id))
-        return SuccessResponse(
-            data=serializer.data,
-            message='Image uploaded successfully.',
-            status_code=status.HTTP_201_CREATED
-        )
+        return success_response(serializer.data, 'Image uploaded successfully.', status.HTTP_201_CREATED)
 
 
 class CategoryListView(APIView):
