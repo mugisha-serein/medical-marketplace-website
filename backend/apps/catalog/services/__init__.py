@@ -1,128 +1,83 @@
-import hashlib
-import json
-import logging
 from django.core.cache import cache
-from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramSimilarity
-from django.db.models import Q, F
-from django.conf import settings
+from django.db.models import Q
 from django.utils.text import slugify
+from apps.accounts.models import User, VendorProfile
 from apps.catalog.models import Product, Category
-
-logger = logging.getLogger(__name__)
-
-SEARCH_CACHE_TTL = getattr(settings, 'SEARCH_CACHE_TTL', 300)
-PRODUCT_CACHE_TTL = getattr(settings, 'PRODUCT_CACHE_TTL', 600)
-
-
-def _search_cache_key(params: dict) -> str:
-    raw = json.dumps(params, sort_keys=True)
-    h = hashlib.md5(raw.encode()).hexdigest()
-    return f'catalog:search:{h}'
-
-
-def _product_cache_key(product_id: str) -> str:
-    return f'catalog:product:{product_id}'
 
 
 class SearchService:
-    """
-    Executes full-text search via PostgreSQL tsvector with trigram fallback.
-    All results come from cache if available; cache-aside pattern.
-    """
-
     @staticmethod
     def search(params: dict):
-        """
-        params keys: q, category_slug, min_price, max_price, condition,
-                     vendor_id, is_featured, ordering, page_size
-        Returns QuerySet (not yet evaluated — view handles pagination).
-        """
-        cache_key = _search_cache_key(params)
-        # Return cached queryset IDs if available; rebuild QS from IDs
-        cached_ids = cache.get(cache_key)
-        if cached_ids is not None:
-            preserved_order = {pk: idx for idx, pk in enumerate(cached_ids)}
-            qs = Product.objects.filter(pk__in=cached_ids, is_active=True).select_related(
-                'vendor', 'category'
-            ).prefetch_related('images', 'tags')
-            # Re-apply order from cached list
-            qs = sorted(qs, key=lambda p: preserved_order.get(str(p.pk), 999))
-            return qs
-
-        qs = Product.objects.filter(is_active=True).select_related(
-            'vendor', 'category'
-        ).prefetch_related('images', 'tags')
-
-        # Full-text search
-        q = params.get('q', '').strip()
+        qs = Product.objects.filter(is_active=True).select_related('vendor', 'category').prefetch_related('images', 'tags')
+        q = (params.get('q') or '').strip()
         if q:
-            search_query = SearchQuery(q, search_type='websearch')
-            qs = qs.filter(search_vector=search_query).annotate(
-                rank=SearchRank(F('search_vector'), search_query)
-            ).order_by('-rank')
-        else:
-            qs = qs.order_by('-created_at')
-
-        # Filters
+            qs = qs.filter(
+                Q(name__icontains=q)
+                | Q(short_description__icontains=q)
+                | Q(description__icontains=q)
+                | Q(manufacturer__icontains=q)
+                | Q(model_number__icontains=q)
+            )
         if params.get('category_slug'):
             qs = qs.filter(category__slug=params['category_slug'])
-
         if params.get('min_price') is not None:
             qs = qs.filter(price__gte=params['min_price'])
-
         if params.get('max_price') is not None:
             qs = qs.filter(price__lte=params['max_price'])
-
         if params.get('condition'):
             qs = qs.filter(condition=params['condition'])
-
         if params.get('vendor_id'):
             qs = qs.filter(vendor_id=params['vendor_id'])
-
         if params.get('is_featured'):
             qs = qs.filter(is_featured=True)
-
-        if params.get('tag_slugs'):
-            qs = qs.filter(tags__slug__in=params['tag_slugs']).distinct()
-
-        # Explicit ordering (overrides search rank)
-        ordering = params.get('ordering')
-        if ordering in ('price', '-price', 'name', '-name', 'created_at', '-created_at') and not q:
+        ordering = params.get('ordering') or '-created_at'
+        if ordering in ('price', '-price', 'name', '-name', 'created_at', '-created_at'):
             qs = qs.order_by(ordering)
-
-        # Cache the list of PKs (not the full objects)
-        ids = list(qs.values_list('pk', flat=True)[:500])
-        cache.set(cache_key, [str(i) for i in ids], SEARCH_CACHE_TTL)
-
         return qs
 
 
 class ProductService:
     @staticmethod
-    def get_product(product_id: str):
-        cache_key = _product_cache_key(product_id)
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
+    def ensure_demo_data():
+        if Product.objects.exists():
+            return
+        vendor_user, _ = User.objects.get_or_create(
+            email='vendor@medequip.local',
+            defaults={'first_name': 'Demo', 'last_name': 'Vendor', 'is_active': True, 'is_vendor': True, 'email_verified': True},
+        )
+        if not vendor_user.has_usable_password():
+            vendor_user.set_password('DemoVendor123!')
+            vendor_user.save(update_fields=['password'])
+        vendor, _ = VendorProfile.objects.get_or_create(
+            user=vendor_user,
+            defaults={'company_name': 'Kigali MedSupply Co.', 'description': 'Trusted supplier of clinic-ready medical equipment.', 'phone': '+250 788 000 111', 'address': 'Kigali, Rwanda', 'website': 'https://example.com', 'is_verified': True},
+        )
+        categories = {}
+        for name, slug, description in [
+            ('Diagnostics', 'diagnostics', 'Tools for examination, imaging and diagnosis.'),
+            ('Patient Care', 'patient-care', 'Everyday devices for clinical care and monitoring.'),
+            ('Surgical Tools', 'surgical-tools', 'Essential equipment for operating rooms and clinics.'),
+        ]:
+            categories[slug], _ = Category.objects.get_or_create(slug=slug, defaults={'name': name, 'description': description, 'is_active': True})
+        for product in [
+            {'name': 'Digital Patient Monitor', 'slug': 'digital-patient-monitor', 'sku': 'MVP-MON-001', 'category': categories['patient-care'], 'price': '850.00', 'stock_quantity': 12, 'manufacturer': 'MedCore', 'model_number': 'MC-PM100', 'short_description': 'Portable 5-parameter monitor for clinics and emergency rooms.', 'description': 'A reliable patient monitor for heart rate, SpO2, blood pressure, temperature and respiratory rate.', 'specifications': {'Display': '12 inch', 'Parameters': 'ECG, SpO2, NIBP, TEMP, RESP'}, 'is_featured': True},
+            {'name': 'Portable Ultrasound Scanner', 'slug': 'portable-ultrasound-scanner', 'sku': 'MVP-ULT-002', 'category': categories['diagnostics'], 'price': '2450.00', 'stock_quantity': 4, 'manufacturer': 'SonoLite', 'model_number': 'SL-U2', 'short_description': 'Compact ultrasound scanner for point-of-care diagnosis.', 'description': 'Lightweight ultrasound device suitable for maternal care, emergency assessment and mobile clinical teams.', 'specifications': {'Probe': 'Convex', 'Battery': '3 hours', 'Connectivity': 'USB-C'}, 'is_featured': True},
+            {'name': 'Sterile Surgical Instrument Set', 'slug': 'sterile-surgical-instrument-set', 'sku': 'MVP-SUR-003', 'category': categories['surgical-tools'], 'price': '320.00', 'stock_quantity': 25, 'manufacturer': 'SafeCut', 'model_number': 'SC-SET20', 'short_description': 'Reusable stainless steel instrument kit for minor procedures.', 'description': 'A practical set of forceps, scissors, clamps and holders for outpatient and theatre preparation.', 'specifications': {'Pieces': '20', 'Material': 'Stainless steel', 'Sterilizable': 'Yes'}, 'is_featured': False},
+            {'name': 'Automatic Blood Pressure Machine', 'slug': 'automatic-blood-pressure-machine', 'sku': 'MVP-BP-004', 'category': categories['diagnostics'], 'price': '95.00', 'stock_quantity': 40, 'manufacturer': 'CarePulse', 'model_number': 'CP-BP9', 'short_description': 'Fast digital BP machine for triage and outpatient rooms.', 'description': 'Easy-to-use automatic blood pressure monitor with cuff and memory for repeated checks.', 'specifications': {'Cuff': 'Adult', 'Power': 'Battery/USB', 'Memory': '99 readings'}, 'is_featured': False},
+        ]:
+            Product.objects.get_or_create(slug=product['slug'], defaults={**product, 'vendor': vendor, 'condition': Product.Condition.NEW, 'is_active': True})
 
-        try:
-            product = Product.objects.select_related('vendor', 'category').prefetch_related(
-                'images', 'tags'
-            ).get(pk=product_id, is_active=True)
-            cache.set(cache_key, product, PRODUCT_CACHE_TTL)
-            return product
-        except Product.DoesNotExist:
-            return None
+    @staticmethod
+    def get_product(product_id: str):
+        return Product.objects.select_related('vendor', 'category').prefetch_related('images', 'tags').filter(pk=product_id, is_active=True).first()
 
     @staticmethod
     def invalidate_product_cache(product_id: str):
-        cache.delete(_product_cache_key(str(product_id)))
-        # Also invalidate search caches (broad invalidation - all search results)
-        cache.delete_pattern('medequip:catalog:search:*')
+        cache.delete(f'catalog:product:{product_id}')
 
     @staticmethod
     def generate_unique_slug(name: str, instance_id=None) -> str:
-        base_slug = slugify(name)[:470]
+        base_slug = slugify(name)[:470] or 'product'
         slug = base_slug
         counter = 1
         while True:
@@ -136,10 +91,7 @@ class ProductService:
 
     @staticmethod
     def get_category_tree():
-        cache_key = 'catalog:category_tree'
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
-        categories = list(Category.objects.filter(is_active=True).order_by('name'))
-        cache.set(cache_key, categories, 1800)
-        return categories
+        return list(Category.objects.filter(is_active=True).order_by('name'))
+
+
+__all__ = ['SearchService', 'ProductService']
