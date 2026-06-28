@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Inquiry
 from .serializers import InquirySerializer
-from apps.catalog.services import ProductService
 
 
 class InquiryListCreateView(APIView):
@@ -15,7 +14,6 @@ class InquiryListCreateView(APIView):
         return Response(InquirySerializer(inquiries, many=True).data)
 
     def post(self, request):
-        ProductService.ensure_demo_data()
         serializer = InquirySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         inquiry = serializer.save()
