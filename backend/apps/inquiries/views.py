@@ -2,12 +2,17 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from config.permission import IsVendorOrAdmin
 from .models import Inquiry
 from .serializers import InquirySerializer
 
 
 class InquiryListCreateView(APIView):
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [AllowAny()]
+        return [IsVendorOrAdmin()]
 
     def get(self, request):
         inquiries = Inquiry.objects.select_related('product')[:50]
