@@ -6,9 +6,6 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', include('config.api.v1.urls')),
-    # Backward-compatible public aliases used by older frontend code.
-    path('api/catalog/', include('apps.catalog.urls')),
-    path('api/inquiries/', include('apps.inquiries.urls')),
 ]
 
 if settings.DEBUG:
