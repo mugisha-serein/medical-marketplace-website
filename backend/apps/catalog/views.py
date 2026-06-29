@@ -1,4 +1,3 @@
-from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
@@ -6,14 +5,6 @@ from rest_framework.permissions import AllowAny
 from .models import Product
 from .serializers import ProductListSerializer, ProductDetailSerializer, CategorySerializer
 from .services import SearchService, ProductService
-
-
-def success_response(data=None, message='OK', status_code=status.HTTP_200_OK):
-    return Response({'success': True, 'message': message, 'data': data}, status=status_code)
-
-
-def error_response(message, error_code='ERROR', status_code=status.HTTP_400_BAD_REQUEST):
-    return Response({'success': False, 'message': message, 'error_code': error_code}, status=status_code)
 
 
 class ProductListView(APIView):
@@ -61,9 +52,9 @@ class ProductDetailView(APIView):
                 'images', 'tags'
             ).get(slug=slug, is_active=True)
         except Product.DoesNotExist:
-            return error_response('Product not found.', 'NOT_FOUND', status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'Not found.'}, status=404)
         serializer = ProductDetailSerializer(product, context={'request': request})
-        return success_response(serializer.data, 'Product retrieved successfully.')
+        return Response(serializer.data)
 
 
 class CategoryListView(APIView):
