@@ -8,10 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /build
 
-# System deps for psycopg2 and Pillow
+# System deps for Pillow and general Python package builds. No PostgreSQL deps are
+# installed because the MVP uses SQLite only.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
     libjpeg-dev \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -25,12 +25,13 @@ FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=config.settings.production \
+    DJANGO_SETTINGS_MODULE=config.settings.development \
+    SQLITE_DATABASE_PATH=/app/data/db.sqlite3 \
     PORT=8000
 
-# Runtime-only system deps
+# Runtime-only system deps for Pillow. No Redis/PostgreSQL/Celery runtime service
+# is required by the SQLite presentation MVP.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
     libjpeg62-turbo \
     && rm -rf /var/lib/apt/lists/*
 
@@ -45,9 +46,9 @@ COPY --from=builder /install /usr/local
 # Copy project source
 COPY --chown=medequip:medequip . .
 
-# Create media and static dirs
-RUN mkdir -p /app/staticfiles /app/media && \
-    chown -R medequip:medequip /app/staticfiles /app/media
+# Create persistent SQLite, media, and static dirs
+RUN mkdir -p /app/data /app/staticfiles /app/media && \
+    chown -R medequip:medequip /app/data /app/staticfiles /app/media
 
 USER medequip
 
@@ -56,17 +57,5 @@ RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-# Gunicorn: 4 workers × 2 threads, 30s timeout, access log to stdout
-CMD ["gunicorn", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "4", \
-     "--threads", "2", \
-     "--worker-class", "gthread", \
-     "--timeout", "30", \
-     "--keep-alive", "5", \
-     "--max-requests", "1000", \
-     "--max-requests-jitter", "100", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "--log-level", "info", \
-     "config.wsgi:application"]
+# Simple MVP runtime. docker-compose.yml runs migrations before this command.
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
