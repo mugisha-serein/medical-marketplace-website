@@ -1,7 +1,6 @@
 from django.core.cache import cache
 from django.db.models import Q
 from django.utils.text import slugify
-from apps.accounts.models import User, VendorProfile
 from apps.catalog.models import Product, Category
 
 
@@ -41,35 +40,16 @@ class SearchService:
 
 class ProductService:
     @staticmethod
-    def ensure_demo_data():
+    def ensure_demo_data(vendor):
+        """Seed demo catalog records for an already-created demo vendor.
+
+        Demo account/user creation belongs in the `seed_demo` management
+        command so normal catalog services do not contain credentials.
+        """
+        if vendor is None:
+            raise ValueError('A demo vendor profile is required to seed demo products.')
         if Product.objects.exists():
             return
-
-        vendor_user, _ = User.objects.get_or_create(
-            email='vendor@medequip.local',
-            defaults={
-                'first_name': 'Demo',
-                'last_name': 'Vendor',
-                'is_active': True,
-                'is_vendor': True,
-                'email_verified': True,
-            },
-        )
-        if not vendor_user.has_usable_password():
-            vendor_user.set_password('DemoVendor123!')
-            vendor_user.save(update_fields=['password'])
-
-        vendor, _ = VendorProfile.objects.get_or_create(
-            user=vendor_user,
-            defaults={
-                'company_name': 'Kigali MedSupply Co.',
-                'description': 'Trusted supplier of clinic-ready medical equipment for hospitals and private practices.',
-                'phone': '+250 788 000 111',
-                'address': 'Kigali, Rwanda',
-                'website': 'https://example.com',
-                'is_verified': True,
-            },
-        )
 
         categories = {}
         for name, slug, description in [

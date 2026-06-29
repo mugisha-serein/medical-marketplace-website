@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     'django_filters',
     'apps.accounts',
     'apps.catalog',
-    'apps.inventory',
+    # Inventory is intentionally disabled for the SQLite MVP so Product.stock_quantity
+    # remains the only active stock source of truth.
     'apps.inquiries',
 ]
 
@@ -94,7 +95,6 @@ DATABASES = {
 MIGRATION_MODULES = {
     'accounts': None,
     'catalog': None,
-    'inventory': None,
     'inquiries': None,
 }
 

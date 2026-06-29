@@ -25,7 +25,6 @@ class ProductListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        ProductService.ensure_demo_data()
         params = {
             'q': request.query_params.get('q', ''),
             'category_slug': request.query_params.get('category'),
@@ -62,7 +61,6 @@ class ProductDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
-        ProductService.ensure_demo_data()
         try:
             product = Product.objects.select_related('vendor', 'category').prefetch_related(
                 'images', 'tags'
@@ -77,7 +75,6 @@ class VendorProductListCreateView(APIView):
     permission_classes = [IsVendorOrAdmin]
 
     def get(self, request):
-        ProductService.ensure_demo_data()
         if request.user.is_staff:
             qs = Product.objects.all()
         else:
@@ -165,7 +162,6 @@ class CategoryListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        ProductService.ensure_demo_data()
         categories = ProductService.get_category_tree()
         serializer = CategorySerializer(
             [c for c in categories if c.parent_id is None], many=True
