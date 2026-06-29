@@ -1,7 +1,8 @@
 from django.core.cache import cache
 from django.db.models import Q
 from django.utils.text import slugify
-from apps.catalog.models import Product, Category
+
+from apps.catalog.models import Category, Product
 
 
 class SearchService:
