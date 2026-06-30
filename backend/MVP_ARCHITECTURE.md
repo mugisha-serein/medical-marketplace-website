@@ -199,14 +199,56 @@ python manage.py seed_demo
 
 Do not seed products or users during normal API requests.
 
+## Folder cleanup plan
+
+This plan is documentation only. Runtime code should be changed in separate focused PRs.
+
+### Phase 1: protect the current MVP shape
+
+Keep the active backend centered on:
+
+```text
+accounts
+catalog
+inquiries
+```
+
+Keep active APIs limited to health, catalog browsing, and buyer inquiries.
+
+### Phase 2: review dormant code
+
+Review inactive backend code before deleting or enabling it. Dormant code should either become part of the ecommerce flow or be removed in a later cleanup PR.
+
+Main review targets:
+
+- inactive inventory code;
+- unused serializers;
+- unmounted account routes;
+- old documentation that describes a bigger platform.
+
+### Phase 3: add seller product management only when ready
+
+Seller product management should be a separate ecommerce feature. Add it only when the frontend, permissions, serializers, and route design are ready together.
+
+Potential future route shape:
+
+```text
+/api/v1/catalog/vendor/products/
+/api/v1/catalog/vendor/products/<id>/
+```
+
+### Phase 4: choose quote flow or cart flow
+
+For a small medical equipment website, a quote/inquiry flow may be enough for the MVP. A full cart should be added only if the selling flow needs direct checkout.
+
 ## MVP expansion order
 
 If the website needs more ecommerce features, add them in this order:
 
 1. Product catalog stability
 2. Seller/admin product management
-3. Cart
-4. Checkout or quote request
+3. Quote request or inquiry improvement
+4. Cart, only if needed
 5. Orders
 6. Payment integration
 
